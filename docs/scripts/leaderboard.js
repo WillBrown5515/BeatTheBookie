@@ -28,6 +28,26 @@ function changeLeaderboardViewMode(mode) {
   renderLeaderboard(currentSortBy);
 }
 
+function viewUserPredictions(username, userId) {
+  if (!userId) {
+    return;
+  }
+
+  const leagueKey = currentSortBy && currentSortBy !== "total" && Object.prototype.hasOwnProperty.call(LEAGUES || {}, currentSortBy)
+    ? currentSortBy
+    : "prem";
+
+  const url = new URL("league.html", window.location.href);
+  url.searchParams.set("league", leagueKey);
+  url.searchParams.set("user_id", userId);
+
+  if (username) {
+    url.searchParams.set("username", username);
+  }
+
+  window.location.href = url.toString();
+}
+
 async function renderLeaderboard(sortBy = currentSortBy) {
   currentSortBy = sortBy || currentSortBy;
   const isMobile = window.matchMedia("(max-width: 767px)").matches;
@@ -57,9 +77,6 @@ async function renderLeaderboard(sortBy = currentSortBy) {
           <option value="prem" ${sortBy === "prem" ? "selected" : ""}>Premier League</option>
           <option value="la_liga" ${sortBy === "la_liga" ? "selected" : ""}>La Liga</option>
           <option value="champ" ${sortBy === "champ" ? "selected" : ""}>Championship</option>
-          <option value="seriea" ${sortBy === "seriea" ? "selected" : ""}>Serie A</option>
-          <option value="bundes" ${sortBy === "bundes" ? "selected" : ""}>Bundesliga</option>
-          <option value="ligue1" ${sortBy === "ligue1" ? "selected" : ""}>Ligue 1</option>
         </select>
       </div>
     </div>
@@ -89,9 +106,6 @@ async function renderLeaderboard(sortBy = currentSortBy) {
             <th>Prem</th>
             <th>La Liga</th>
             <th>Champ</th>
-            <th>Serie A</th>
-            <th>Bundes</th>
-            <th>Ligue 1</th>
             <th>Total</th>
           </tr>
         </thead>
@@ -113,9 +127,6 @@ async function renderLeaderboard(sortBy = currentSortBy) {
         <td>${row.prem}</td>
         <td>${row.la_liga}</td>
         <td>${row.champ}</td>
-        <td>${row.seriea}</td>
-        <td>${row.bundes}</td>
-        <td>${row.ligue1}</td>
         <td>${row.total}</td>
       </tr>
     `;
@@ -139,9 +150,6 @@ async function renderLeaderboard(sortBy = currentSortBy) {
           <p class="card-text mb-1">Premier League: ${row.prem}</p>
           <p class="card-text mb-1">La Liga: ${row.la_liga}</p>
           <p class="card-text mb-1">Championship: ${row.champ}</p>
-          <p class="card-text mb-1">Serie A: ${row.seriea}</p>
-          <p class="card-text mb-1">Bundesliga: ${row.bundes}</p>
-          <p class="card-text mb-1">Ligue 1: ${row.ligue1}</p>
           <p class="card-text fw-bold">Total: ${row.total}</p>
           ${canViewUserPredictions
             ? `<button class="btn btn-link p-0" onclick="viewUserPredictions('${row.username}', '${row.user_id}')">
@@ -166,9 +174,6 @@ async function renderLeaderboard(sortBy = currentSortBy) {
               <th>Prem</th>
               <th>La Liga</th>
               <th>Champ</th>
-              <th>Serie A</th>
-              <th>Bundes</th>
-              <th>Ligue 1</th>
               <th>Total</th>
             </tr>
           </thead>
@@ -190,9 +195,6 @@ async function renderLeaderboard(sortBy = currentSortBy) {
               <td>${row.prem}</td>
               <td>${row.la_liga}</td>
               <td>${row.champ}</td>
-              <td>${row.seriea}</td>
-              <td>${row.bundes}</td>
-              <td>${row.ligue1}</td>
               <td>${row.total}</td>
             </tr>
     `;

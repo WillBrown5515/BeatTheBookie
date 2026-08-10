@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Predictions 2025-26</title>
+    <title>Predictions 2026-27</title>
     <link rel="icon" type="image/x-icon" href="logo.jpg" />
     <link rel="stylesheet" href="styles.css" />
     <link
@@ -57,7 +57,7 @@
           <button onclick="copyReferral()">Copy</button>
         </div>
 
-        <p>
+        <p id="signup-message">
           <strong>Important for returning players:</strong> Everyone needs to create a new
           account for this season. Last year's accounts and data have not been moved
           across, and creating a new account helps us manage your data in line with
@@ -112,7 +112,7 @@
           referrer will not receive the referral bonus.
         </p>
 
-        <p>
+        <p id="deadline-message">
           <strong>Deadline:</strong> 14th August 2026 at 18:00. After this point,
           predictions will be locked. You’ll still be able to log in, view scores,
           and browse all predictions.
@@ -137,5 +137,31 @@
       </section>
 
     </div>
+
+    <script>
+      document.addEventListener("DOMContentLoaded", () => {
+        const signupMessage = document.getElementById("signup-message");
+        const deadlineMessage = document.getElementById("deadline-message");
+        const deadlinePassed = typeof isDeadlinePassed === "function" ? isDeadlinePassed() : false;
+
+        if (deadlinePassed) {
+          if (signupMessage) {
+            signupMessage.innerHTML = `
+              Thanks for signing up to <strong>Beat the Bookie</strong> this season.
+              Predictions are now locked after the deadline, but you can still log in,
+              view the standings, and browse everyone’s picks as the season unfolds.
+            `;
+          }
+
+          if (deadlineMessage) {
+            deadlineMessage.innerHTML = `
+              <strong>Deadline:</strong> The deadline has now passed. Thanks for taking part,
+              and we hope you enjoyed the competition. You can still log in, view scores,
+              and browse all predictions.
+            `;
+          }
+        }
+      });
+    </script>
   </body>
 </html>

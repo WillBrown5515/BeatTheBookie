@@ -26,6 +26,7 @@ const LEAGUES = {
 };
 
 let currentUserId = null;
+let viewedUsername = "";
 let deadline_passed = false;
 let isGuestViewingBookie = false;
 let changes_made = false;
@@ -33,6 +34,16 @@ let changes_made = false;
 function getLeagueFromURL() {
   const params = new URLSearchParams(window.location.search);
   return params.get("league");
+}
+
+function getUserIdFromURL() {
+  const params = new URLSearchParams(window.location.search);
+  return params.get("user_id");
+}
+
+function getUsernameFromURL() {
+  const params = new URLSearchParams(window.location.search);
+  return params.get("username");
 }
 
 async function initLeaguePage() {
@@ -44,13 +55,16 @@ async function initLeaguePage() {
     return;
   }
 
- const { data: { session } } = await supaclient.auth.getSession();
+  const { data: { session } } = await supaclient.auth.getSession();
+  const requestedUserId = getUserIdFromURL();
+  const requestedUsername = getUsernameFromURL();
 
-  if (session?.user) {
-    // Logged in user
+  if (requestedUserId) {
+    currentUserId = requestedUserId;
+    viewedUsername = requestedUsername || "Selected user";
+  } else if (session?.user) {
     currentUserId = session.user.id;
   } else {
-    // Guest viewing The Bookie predictions
     isGuestViewingBookie = true;
 
     const { data: bookieUser, error } = await supaclient
@@ -79,6 +93,7 @@ async function initLeaguePage() {
 
   const guestMessage = document.getElementById("guest-message");
   const actionButtonsTop = document.getElementById("action-buttons-top");
+  const isViewingSomeoneElse = Boolean(requestedUserId) && (!session || session.user?.id !== requestedUserId);
 
   if (actionButtonsTop) {
     actionButtonsTop.innerHTML = `
@@ -96,6 +111,12 @@ async function initLeaguePage() {
         Sign up or log in to create and save your own league predictions.
       </div>
     `;
+  } else if (isViewingSomeoneElse && guestMessage) {
+    guestMessage.innerHTML = `
+      <div class="alert alert-secondary text-center mb-4" role="alert">
+        <strong>You are viewing ${escapeHTML(viewedUsername)}'s predictions.</strong>
+      </div>
+    `;
   } else if (!deadline_passed && !isGuestViewingBookie && guestMessage) {
     guestMessage.innerHTML = `
       <div class="alert alert-info text-center mb-2" role="alert">
@@ -105,12 +126,12 @@ async function initLeaguePage() {
     `;
   }
 
-  // Setup buttons and disable if deadline passed or guest viewing The Bookie
+  // Setup buttons and disable if deadline passed, guest viewing The Bookie, or viewing someone else's predictions
   const saveBtn = document.getElementById("save-btn");
   const cancelBtn = document.getElementById("cancel-btn");
   const saveBtnTop = document.getElementById("save-btn-top");
   const cancelBtnTop = document.getElementById("cancel-btn-top");
-  const disableEditing = deadline_passed || isGuestViewingBookie;
+  const disableEditing = deadline_passed || isGuestViewingBookie || isViewingSomeoneElse;
   const setButtonState = (button, title) => {
     if (button) {
       button.disabled = disableEditing;
@@ -129,6 +150,11 @@ async function initLeaguePage() {
       setButtonState(cancelBtn, "Login to create and save your own predictions.");
       setButtonState(saveBtnTop, "Login to create and save your own predictions.");
       setButtonState(cancelBtnTop, "Login to create and save your own predictions.");
+    } else if (isViewingSomeoneElse) {
+      setButtonState(saveBtn, "You can only edit your own predictions.");
+      setButtonState(cancelBtn, "You can only edit your own predictions.");
+      setButtonState(saveBtnTop, "You can only edit your own predictions.");
+      setButtonState(cancelBtnTop, "You can only edit your own predictions.");
     }
   } else {
     setButtonState(saveBtn, "");
@@ -169,7 +195,7 @@ async function initLeaguePage() {
 }
 
 function renderPredictionTable(teamNames) {
-  const editable = !deadline_passed && !isGuestViewingBookie;
+  const editable = !deadline_passed && !isGuestViewingBookie && !Boolean(getUserIdFromURL());
 
   let html = `
     <div class="table-responsive">
@@ -303,9 +329,10 @@ async function loadStandings(league) {
 }
 
 async function save_changes(league) {
+  const requestedUserId = getUserIdFromURL();
 
-  if (deadline_passed || isGuestViewingBookie) {
-    alert("You must be logged in to save changes.");
+  if (deadline_passed || isGuestViewingBookie || requestedUserId) {
+    alert("You can only edit your own predictions.");
     return;
   }
 
@@ -344,9 +371,10 @@ async function save_changes(league) {
 }
 
 async function reset_changes(league) {
+  const requestedUserId = getUserIdFromURL();
 
-  if (deadline_passed || isGuestViewingBookie) {
-    alert("You must be logged in to discard changes.");
+  if (deadline_passed || isGuestViewingBookie || requestedUserId) {
+    alert("You can only edit your own predictions.");
     return;
   }
 
