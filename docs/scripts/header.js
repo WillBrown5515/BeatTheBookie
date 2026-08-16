@@ -171,6 +171,18 @@ async function buildNav() {
   const nav = document.getElementById("nav-links");
   if (!nav) return;
 
+  let viewedUser = null;
+  try {
+    const stored = sessionStorage.getItem("btb-viewed-user");
+    viewedUser = stored ? JSON.parse(stored) : null;
+  } catch (error) {
+    console.warn("Could not read viewed user from sessionStorage:", error);
+  }
+
+  const viewedUserParams = viewedUser && viewedUser.userId
+    ? `&user_id=${encodeURIComponent(viewedUser.userId)}&username=${encodeURIComponent(viewedUser.username || "")}`
+    : "";
+
   nav.innerHTML = `
     <li class="nav-item">
       <a class="nav-link" href="index.html">Welcome</a>
@@ -189,7 +201,7 @@ async function buildNav() {
   Object.entries(leagueDefinitions).forEach(([key, league]) => {
     nav.innerHTML += `
       <li class="nav-item">
-        <a class="nav-link" href="league.html?league=${key}">
+        <a class="nav-link" href="league.html?league=${key}${viewedUserParams}">
           ${league.name}
         </a>
       </li>

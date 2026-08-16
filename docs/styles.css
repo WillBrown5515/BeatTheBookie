@@ -62,31 +62,37 @@ th {
 }
 
 #pred-table table thead th,
-#league-table table td,
-#league-table table th {
+#pred-table table tbody td,
+#league-table table thead th,
+#league-table table tbody td {
   height: 48px;
   vertical-align: middle;
 }
 
-#pred-table table thead th {
+#pred-table table thead th,
+#pred-table table tbody td,
+#league-table table thead th,
+#league-table table tbody td {
   padding: 0 0.7rem;
 }
 
-#league-table table td,
-#league-table table th {
-  padding: 0 0.7rem;
+#pred-table table tbody tr,
+#league-table table tbody tr {
+  height: 48px;
 }
 
 @media (min-width: 992px) {
   #pred-table table thead th,
-  #league-table table td,
-  #league-table table th {
+  #pred-table table tbody td,
+  #league-table table thead th,
+  #league-table table tbody td {
     height: 48px;
   }
 
   #pred-table table thead th,
-  #league-table table td,
-  #league-table table th {
+  #pred-table table tbody td,
+  #league-table table thead th,
+  #league-table table tbody td {
     padding: 0 0.8rem;
   }
 }

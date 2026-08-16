@@ -30,6 +30,40 @@ let viewedUsername = "";
 let deadline_passed = false;
 let isGuestViewingBookie = false;
 let changes_made = false;
+const leaguePositionScores = {};
+const VIEWED_USER_STORAGE_KEY = "btb-viewed-user";
+
+function getStoredViewedUser() {
+  try {
+    const raw = window.sessionStorage.getItem(VIEWED_USER_STORAGE_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch (error) {
+    console.warn("Could not read stored viewed user:", error);
+    return null;
+  }
+}
+
+function setStoredViewedUser(userId, username) {
+  if (!userId) {
+    clearStoredViewedUser();
+    return;
+  }
+
+  try {
+    window.sessionStorage.setItem(VIEWED_USER_STORAGE_KEY, JSON.stringify({ userId, username: username || "" }));
+  } catch (error) {
+    console.warn("Could not persist viewed user:", error);
+  }
+}
+
+function clearStoredViewedUser() {
+  try {
+    window.sessionStorage.removeItem(VIEWED_USER_STORAGE_KEY);
+  } catch (error) {
+    console.warn("Could not clear stored viewed user:", error);
+  }
+}
 
 function getLeagueFromURL() {
   const params = new URLSearchParams(window.location.search);
@@ -58,12 +92,18 @@ async function initLeaguePage() {
   const { data: { session } } = await supaclient.auth.getSession();
   const requestedUserId = getUserIdFromURL();
   const requestedUsername = getUsernameFromURL();
+  const storedViewedUser = getStoredViewedUser();
 
   if (requestedUserId) {
     currentUserId = requestedUserId;
     viewedUsername = requestedUsername || "Selected user";
+    setStoredViewedUser(requestedUserId, viewedUsername);
+  } else if (storedViewedUser && session?.user && storedViewedUser.userId !== session.user.id) {
+    currentUserId = storedViewedUser.userId;
+    viewedUsername = storedViewedUser.username || "Selected user";
   } else if (session?.user) {
     currentUserId = session.user.id;
+    clearStoredViewedUser();
   } else {
     isGuestViewingBookie = true;
 
@@ -114,7 +154,10 @@ async function initLeaguePage() {
   } else if (isViewingSomeoneElse && guestMessage) {
     guestMessage.innerHTML = `
       <div class="alert alert-secondary text-center mb-4" role="alert">
-        <strong>You are viewing ${escapeHTML(viewedUsername)}'s predictions.</strong>
+        <div class="d-flex flex-column flex-sm-row align-items-center justify-content-center gap-2">
+          <strong>You are viewing ${escapeHTML(viewedUsername)}'s predictions.</strong>
+          <button type="button" class="btn btn-sm btn-outline-primary" id="view-my-predictions-btn">View my predictions</button>
+        </div>
       </div>
     `;
   } else if (!deadline_passed && !isGuestViewingBookie && guestMessage) {
@@ -179,6 +222,17 @@ async function initLeaguePage() {
     cancelBtnTop.onclick = () => reset_changes(league.code);
   }
 
+  const viewMyPredictionsBtn = document.getElementById("view-my-predictions-btn");
+  if (viewMyPredictionsBtn && session?.user) {
+    viewMyPredictionsBtn.onclick = () => {
+      clearStoredViewedUser();
+      const nextUrl = new URL(window.location.href);
+      nextUrl.searchParams.delete("user_id");
+      nextUrl.searchParams.delete("username");
+      window.location.href = nextUrl.toString();
+    };
+  }
+
   updateUnsavedMessage();
 
   await loadPredictions(league.code);
@@ -194,8 +248,9 @@ async function initLeaguePage() {
   });
 }
 
-function renderPredictionTable(teamNames) {
+function renderPredictionTable(teamNames, positionScores = {}) {
   const editable = !deadline_passed && !isGuestViewingBookie && !Boolean(getUserIdFromURL());
+  const showScores = deadline_passed;
 
   let html = `
     <div class="table-responsive">
@@ -204,6 +259,7 @@ function renderPredictionTable(teamNames) {
           <tr>
             <th>Position</th>
             <th>Team</th>
+            ${showScores ? "<th>Score</th>" : ""}
           </tr>
         </thead>
         <tbody id="pred-body">
@@ -212,6 +268,7 @@ function renderPredictionTable(teamNames) {
   teamNames.forEach((teamName, i) => {
     const canMoveUp = editable && i > 0;
     const canMoveDown = editable && i < teamNames.length - 1;
+    const scoreValue = showScores ? (positionScores[String(i + 1)] ?? "—") : "";
     // Always render the left and right containers when editable so grid columns stay consistent.
     const leftControls = editable ? `
       <div class="move-controls move-controls-left">
@@ -232,6 +289,7 @@ function renderPredictionTable(teamNames) {
             ${rightControls}
           </div>
         </td>
+        ${showScores ? `<td>${scoreValue}</td>` : ""}
       </tr>`;
   });
 
@@ -253,7 +311,7 @@ function renderPredictionTable(teamNames) {
         const [movedTeam] = teamNamesFromRows.splice(currentIndex, 1);
         teamNamesFromRows.splice(targetIndex, 0, movedTeam);
 
-        renderPredictionTable(teamNamesFromRows);
+        renderPredictionTable(teamNamesFromRows, positionScores);
         changes_made = true;
         updateUnsavedMessage();
       });
@@ -261,15 +319,54 @@ function renderPredictionTable(teamNames) {
   }
 }
 
+async function getLeaguePositionScores(league) {
+  if (leaguePositionScores[league]) {
+    return leaguePositionScores[league];
+  }
+
+  const { data: rows, error } = await supaclient
+    .from(`${league}_scores`)
+    .select("*")
+    .eq("user_id", currentUserId)
+    .maybeSingle();
+
+  if (error) {
+    console.error(`Could not load position scores for ${league}:`, error);
+    leaguePositionScores[league] = {};
+    return leaguePositionScores[league];
+  }
+
+  if (!rows) {
+    leaguePositionScores[league] = {};
+    return leaguePositionScores[league];
+  }
+
+  const scoreMap = Object.fromEntries(
+    Object.entries(rows)
+      .filter(([key, value]) => key !== "user_id" && value !== null && value !== undefined && value !== "")
+      .map(([key, value]) => [String(key), Number(value)])
+  );
+
+  leaguePositionScores[league] = scoreMap;
+  return scoreMap;
+}
+
 async function loadPredictions(league) {
   let { data } = await supaclient
     .from(`${league}_preds`)
     .select("*")
     .eq("user_id", currentUserId);
+
+  if (!data || data.length === 0) {
+    renderPredictionTable([], {});
+    return;
+  }
+
   delete data[0].user_id;
 
   const teamNames = Object.keys(data[0]).map(key => data[0][key]);
-  renderPredictionTable(teamNames);
+  const positionScores = deadline_passed ? await getLeaguePositionScores(league) : {};
+  renderPredictionTable(teamNames, positionScores);
 }
 
 async function loadStandings(league) {
@@ -277,9 +374,9 @@ async function loadStandings(league) {
     .from("default_predictions")
     .select("*")
     .in("name", [
-      `${league}_prev_standings`,
-      `${league}_prev_points`,
-      `${league}_prev_goal_difference`
+      `${league}_curr_standings`,
+      `${league}_curr_points`,
+      `${league}_curr_goal_difference`
     ]);
 
   if (error) {
@@ -291,9 +388,9 @@ async function loadStandings(league) {
     rows.map(row => [row.name, row])
   );
 
-  const standings = rowsByName[`${league}_prev_standings`];
-  const points = rowsByName[`${league}_prev_points`];
-  const gd = rowsByName[`${league}_prev_goal_difference`];
+  const standings = rowsByName[`${league}_curr_standings`];
+  const points = rowsByName[`${league}_curr_points`];
+  const gd = rowsByName[`${league}_curr_goal_difference`];
 
   // Remove `name` so it doesn't show up as a row
   const { name, ...standingsData } = standings;
@@ -326,6 +423,42 @@ async function loadStandings(league) {
 
   html += `</tbody></table>`;
   document.getElementById("league-table").innerHTML = html;
+}
+
+async function loadUserScore(league) {
+  const scoreContainer = document.getElementById("user-score");
+  if (!scoreContainer || !currentUserId) {
+    return;
+  }
+
+  const { data: scoreRow, error } = await supaclient
+    .from("leaderboard")
+    .select("username, prem, la_liga, champ, total")
+    .eq("user_id", currentUserId)
+    .maybeSingle();
+
+  if (error) {
+    console.error("Could not load user's league score:", error);
+    return;
+  }
+
+  if (!scoreRow) {
+    scoreContainer.innerHTML = "";
+    return;
+  }
+
+  const leagueName = LEAGUES[league]?.name || "League";
+  const leaguePoints = Number(scoreRow[league] ?? 0);
+  const totalPoints = Number(scoreRow.total ?? 0);
+  const displayName = (viewedUsername || scoreRow.username || "This user").trim();
+
+  scoreContainer.innerHTML = `
+    <div class="alert alert-success text-center mb-4" role="alert">
+      <strong>${escapeHTML(displayName)}'s score:</strong>
+      ${leaguePoints} points in ${leagueName}
+      ${!Number.isNaN(totalPoints) ? `· Total: ${totalPoints} points` : ""}
+    </div>
+  `;
 }
 
 async function save_changes(league) {
